@@ -23,7 +23,8 @@
 
 #include "rational.h"
 
-namespace olive::core {
+namespace olive::core
+{
 
 /**
  * @brief Functions for converting times/timecodes/timestamps
@@ -37,40 +38,51 @@ namespace olive::core {
  */
 class Timecode {
 public:
-  enum Display {
-    kTimecodeDropFrame,
-    kTimecodeNonDropFrame,
-    kTimecodeSeconds,
-    kFrames,
-    kMilliseconds
-  };
+	enum Display {
+		kTimecodeDropFrame,
+		kTimecodeNonDropFrame,
+		kTimecodeSeconds,
+		kFrames,
+		kMilliseconds
+	};
 
-  enum Rounding {
-    kCeil,
-    kFloor,
-    kRound
-  };
+	enum Rounding { kCeil, kFloor, kRound };
 
-  /**
+	/**
    * @brief Convert a timestamp (according to a rational timebase) to a user-friendly string representation
    */
-  static std::string time_to_timecode(const rational& time, const rational& timebase, const Display &display, bool show_plus_if_positive = false);
-  static rational timecode_to_time(std::string timecode, const rational& timebase, const Display& display, bool *ok = nullptr);
+	static std::string time_to_timecode(const rational &time,
+										const rational &timebase,
+										const Display &display,
+										bool show_plus_if_positive = false);
+	static rational timecode_to_time(std::string timecode,
+									 const rational &timebase,
+									 const Display &display,
+									 bool *ok = nullptr);
 
-  static std::string time_to_string(int64_t ms);
+	static std::string time_to_string(int64_t ms);
 
-  static rational snap_time_to_timebase(const rational& time, const rational& timebase, Rounding floor = kRound);
+	static rational snap_time_to_timebase(const rational &time,
+										  const rational &timebase,
+										  Rounding floor = kRound);
 
-  static int64_t time_to_timestamp(const rational& time, const rational& timebase, Rounding floor = kRound);
-  static int64_t time_to_timestamp(const double& time, const rational& timebase, Rounding floor = kRound);
+	static int64_t time_to_timestamp(const rational &time,
+									 const rational &timebase,
+									 Rounding floor = kRound);
+	static int64_t time_to_timestamp(const double &time,
+									 const rational &timebase,
+									 Rounding floor = kRound);
 
-  static int64_t rescale_timestamp(const int64_t& ts, const rational& source, const rational& dest);
-  static int64_t rescale_timestamp_ceil(const int64_t& ts, const rational& source, const rational& dest);
+	static int64_t rescale_timestamp(const int64_t &ts, const rational &source,
+									 const rational &dest);
+	static int64_t rescale_timestamp_ceil(const int64_t &ts,
+										  const rational &source,
+										  const rational &dest);
 
-  static rational timestamp_to_time(const int64_t& timestamp, const rational& timebase);
+	static rational timestamp_to_time(const int64_t &timestamp,
+									  const rational &timebase);
 
-  static bool timebase_is_drop_frame(const rational& timebase);
-
+	static bool timebase_is_drop_frame(const rational &timebase);
 };
 
 }

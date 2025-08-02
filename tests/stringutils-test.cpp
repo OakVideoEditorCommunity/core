@@ -27,20 +27,20 @@ using namespace olive::core;
 
 bool stringutils_format_test()
 {
-  const char *expected = "Hello, world!";
-  std::string f = StringUtils::format("%s, %s!", "Hello", "world");
-  if (strcmp(f.c_str(), expected) != 0) {
-    return false;
-  }
+	const char *expected = "Hello, world!";
+	std::string f = StringUtils::format("%s, %s!", "Hello", "world");
+	if (strcmp(f.c_str(), expected) != 0) {
+		return false;
+	}
 
-  return true;
+	return true;
 }
 
 int main()
 {
-  Tester t;
+	Tester t;
 
-  t.add("StringUtils::format", stringutils_format_test);
+	t.add("StringUtils::format", stringutils_format_test);
 
-  return t.exec();
+	return t.exec();
 }

@@ -22,143 +22,139 @@
 
 #include <cmath>
 
-namespace olive::core {
+namespace olive::core
+{
 
 const std::vector<int> AudioParams::kSupportedSampleRates = {
-  8000,          // 8000 Hz
-  11025,         // 11025 Hz
-  16000,         // 16000 Hz
-  22050,         // 22050 Hz
-  24000,         // 24000 Hz
-  32000,         // 32000 Hz
-  44100,         // 44100 Hz
-  48000,         // 48000 Hz
-  88200,         // 88200 Hz
-  96000          // 96000 Hz
+	8000, // 8000 Hz
+	11025, // 11025 Hz
+	16000, // 16000 Hz
+	22050, // 22050 Hz
+	24000, // 24000 Hz
+	32000, // 32000 Hz
+	44100, // 44100 Hz
+	48000, // 48000 Hz
+	88200, // 88200 Hz
+	96000 // 96000 Hz
 };
 
 const std::vector<uint64_t> AudioParams::kSupportedChannelLayouts = {
-  AV_CH_LAYOUT_MONO,
-  AV_CH_LAYOUT_STEREO,
-  AV_CH_LAYOUT_2_1,
-  AV_CH_LAYOUT_5POINT1,
-  AV_CH_LAYOUT_7POINT1
+	AV_CH_LAYOUT_MONO, AV_CH_LAYOUT_STEREO, AV_CH_LAYOUT_2_1,
+	AV_CH_LAYOUT_5POINT1, AV_CH_LAYOUT_7POINT1
 };
 
 bool AudioParams::operator==(const AudioParams &other) const
 {
-  AVChannelLayout otherLayout=other.channel_layout();
-  return format() == other.format()
-          && sample_rate() == other.sample_rate()
-          && time_base() == other.time_base()
-          && av_channel_layout_compare(&channel_layout_, &otherLayout);
+	AVChannelLayout otherLayout = other.channel_layout();
+	return format() == other.format() && sample_rate() == other.sample_rate() &&
+		   time_base() == other.time_base() &&
+		   av_channel_layout_compare(&channel_layout_, &otherLayout);
 }
 
 bool AudioParams::operator!=(const AudioParams &other) const
 {
-  return !(*this == other);
+	return !(*this == other);
 }
 
 int64_t AudioParams::time_to_bytes(const double &time) const
 {
-  return time_to_bytes_per_channel(time) * channel_count();
+	return time_to_bytes_per_channel(time) * channel_count();
 }
 
 int64_t AudioParams::time_to_bytes(const rational &time) const
 {
-  return time_to_bytes(time.toDouble());
+	return time_to_bytes(time.toDouble());
 }
 
 int64_t AudioParams::time_to_bytes_per_channel(const double &time) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return int64_t(time_to_samples(time)) * bytes_per_sample_per_channel();
+	return int64_t(time_to_samples(time)) * bytes_per_sample_per_channel();
 }
 
 int64_t AudioParams::time_to_bytes_per_channel(const rational &time) const
 {
-  return time_to_bytes_per_channel(time.toDouble());
+	return time_to_bytes_per_channel(time.toDouble());
 }
 
 int64_t AudioParams::time_to_samples(const double &time) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return std::round(double(sample_rate()) * time);
+	return std::round(double(sample_rate()) * time);
 }
 
 int64_t AudioParams::time_to_samples(const rational &time) const
 {
-  return time_to_samples(time.toDouble());
+	return time_to_samples(time.toDouble());
 }
 
 int64_t AudioParams::samples_to_bytes(const int64_t &samples) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return samples_to_bytes_per_channel(samples) * channel_count();
+	return samples_to_bytes_per_channel(samples) * channel_count();
 }
 
 int64_t AudioParams::samples_to_bytes_per_channel(const int64_t &samples) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return samples * bytes_per_sample_per_channel();
+	return samples * bytes_per_sample_per_channel();
 }
 
 rational AudioParams::samples_to_time(const int64_t &samples) const
 {
-  return sample_rate_as_time_base() * samples;
+	return sample_rate_as_time_base() * samples;
 }
 
 int64_t AudioParams::bytes_to_samples(const int64_t &bytes) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return bytes / (channel_count() * bytes_per_sample_per_channel());
+	return bytes / (channel_count() * bytes_per_sample_per_channel());
 }
 
 rational AudioParams::bytes_to_time(const int64_t &bytes) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return samples_to_time(bytes_to_samples(bytes));
+	return samples_to_time(bytes_to_samples(bytes));
 }
 
 rational AudioParams::bytes_per_channel_to_time(const int64_t &bytes) const
 {
-  assert(is_valid());
+	assert(is_valid());
 
-  return samples_to_time(bytes_to_samples(bytes * channel_count()));
+	return samples_to_time(bytes_to_samples(bytes * channel_count()));
 }
 
 int AudioParams::channel_count() const
 {
-  return channel_count_;
+	return channel_count_;
 }
 
 int AudioParams::bytes_per_sample_per_channel() const
 {
-  return format_.byte_count();
+	return format_.byte_count();
 }
 
 int AudioParams::bits_per_sample() const
 {
-  return bytes_per_sample_per_channel() * 8;
+	return bytes_per_sample_per_channel() * 8;
 }
 
 bool AudioParams::is_valid() const
 {
-  return (!time_base().isNull()
-          && av_channel_layout_check(&channel_layout_)
-          && format_ > SampleFormat::INVALID
-          && format_ < SampleFormat::COUNT);
+	return (!time_base().isNull() &&
+			av_channel_layout_check(&channel_layout_) &&
+			format_ > SampleFormat::INVALID && format_ < SampleFormat::COUNT);
 }
 
 void AudioParams::calculate_channel_count()
 {
-  channel_count_ = channel_layout().nb_channels;
+	channel_count_ = channel_layout().nb_channels;
 }
 
 }
