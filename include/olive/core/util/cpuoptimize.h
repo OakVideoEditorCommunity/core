@@ -1,6 +1,6 @@
 /***
 
-  Oak Video Editor - Non-Linear Video Editor
+  Olive - Non-Linear Video Editor
   Copyright (C) 2023 Olive Studios LLC
 
   This program is free software: you can redistribute it and/or modify
