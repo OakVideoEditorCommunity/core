@@ -28,7 +28,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Link avutil
-find_package(FFMPEG 8.0 REQUIRED
+find_package(FFMPEG 6.0 REQUIRED
   COMPONENTS avutil
 )
 
