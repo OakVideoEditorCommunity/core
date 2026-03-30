@@ -36,8 +36,30 @@ extern "C" {
 namespace olive::core
 {
 
+/**
+ * @brief Audio parameters class managing audio stream configuration
+ * 
+ * CRITICAL NOTE: This class manages AVChannelLayout which contains dynamic memory
+ * (custom channel maps via u.map pointer). Prior to the Rule of Three implementation,
+ * shallow copies could occur when:
+ * - AudioParams stored in QVector (QVector reallocations)
+ * - AudioParams passed by value to RenderVideoParams
+ * - AudioParams copied during Node graph duplication in ProjectCopier
+ * 
+ * When shallow copies occurred, one copy's set_channel_layout() could free the
+ * shared u.map pointer, corrupting other copies. This manifested as:
+ * - channel_layouts=0x0 errors in AudioProcessor::Open()
+ * - is_valid() returning false unexpectedly
+ * 
+ * The Rule of Three (copy ctor, copy assignment, destructor) was added to ensure
+ * proper deep copies of AVChannelLayout using av_channel_layout_copy().
+ */
 class AudioParams {
 public:
+	/**
+	 * @brief Default constructor creates invalid AudioParams
+	 * sample_rate=0, channel_layout empty, format=INVALID
+	 */
 	AudioParams()
 		: sample_rate_(0)
 		, channel_layout_{}
@@ -47,6 +69,15 @@ public:
 		set_default_footage_parameters();
 	}
 
+	/**
+	 * @brief Constructor from AVChannelLayout (deep copy)
+	 * @param sample_rate Audio sample rate (e.g., 48000)
+	 * @param channel_layout FFmpeg channel layout (copied via av_channel_layout_copy)
+	 * @param format Sample format (e.g., SampleFormat::F32P)
+	 * 
+	 * NOTE: The channel_layout parameter is deep-copied. The original can be
+	 * safely uninit'd after this constructor returns.
+	 */
 	AudioParams(const int &sample_rate, const AVChannelLayout &channel_layout,
 				const SampleFormat &format)
 		: sample_rate_(sample_rate)
@@ -59,9 +90,19 @@ public:
 		av_channel_layout_uninit(&channel_layout_);
 		av_channel_layout_copy(&channel_layout_, &channel_layout);
 
-		// Cache channel count
+		// Cache channel count from the copied layout
 		calculate_channel_count();
 	}
+
+	/**
+	 * @brief Constructor from channel layout mask
+	 * @param sample_rate Audio sample rate
+	 * @param channel_layout Channel layout mask (e.g., AV_CH_LAYOUT_STEREO)
+	 * @param format Sample format
+	 * 
+	 * This is the most common constructor used in Olive. The mask is converted
+	 * to AVChannelLayout via av_channel_layout_from_mask().
+	 */
 	AudioParams(const int &sample_rate, uint64_t channel_layout,
 				const SampleFormat &format)
 		: sample_rate_(sample_rate)
@@ -91,12 +132,28 @@ public:
 		return channel_layout_;
 	}
 
+	/**
+	 * @brief Set channel layout from AVChannelLayout (deep copy)
+	 * @param channel_layout Source channel layout to copy
+	 * 
+	 * CRITICAL: This function first uninitializes the current layout (freeing any
+	 * dynamic memory), then deep-copies the new layout. This is safe only if
+	 * copies are properly managed via Rule of Three.
+	 * 
+	 * If called on a shallow-copied AudioParams, this would corrupt other copies
+	 * that share the same u.map pointer.
+	 */
 	void set_channel_layout(const AVChannelLayout &channel_layout)
 	{
 		av_channel_layout_uninit(&channel_layout_);
 		av_channel_layout_copy(&channel_layout_, &channel_layout);
 		calculate_channel_count();
 	}
+
+	/**
+	 * @brief Set channel layout from mask
+	 * @param mask Channel layout mask (e.g., AV_CH_LAYOUT_STEREO)
+	 */
 	void set_channel_layout(uint64_t mask)
 	{
 		av_channel_layout_uninit(&channel_layout_);
@@ -178,6 +235,32 @@ public:
 	bool operator==(const AudioParams &other) const;
 	bool operator!=(const AudioParams &other) const;
 
+	/**
+	 * @name Rule of Three Implementation
+	 * 
+	 * These are required because AVChannelLayout (FFmpeg >= 5.0) contains a union
+	 * with a pointer member (u.map for custom channel maps). Without proper
+	 * deep copy management:
+	 * 
+	 * 1. Default copy constructor: Shallow copies u.map pointer, leading to
+	 *    double-free when original and copy are destroyed
+	 * 2. Default copy assignment: Same issue as copy constructor
+	 * 3. Default destructor: Doesn't free u.map, causing memory leaks
+	 * 
+	 * The implementations use av_channel_layout_copy() and av_channel_layout_uninit()
+	 * for proper FFmpeg-managed memory handling.
+	 * 
+	 * Context where this matters:
+	 * - QVector<AudioParams> in FootageDescription (vector reallocations)
+	 * - RenderVideoParams passing AudioParams by value
+	 * - ProjectCopier duplicating node graphs with audio parameters
+	 */
+	///@{
+	AudioParams(const AudioParams &other);
+	AudioParams &operator=(const AudioParams &other);
+	~AudioParams();
+	///@}
+
 	static const std::vector<uint64_t> kSupportedChannelLayouts;
 	static const std::vector<int> kSupportedSampleRates;
 
@@ -189,21 +272,42 @@ private:
 		duration_ = 0;
 	}
 
+	/**
+	 * @brief Updates channel_count_ from the current channel_layout_
+	 * Called after any channel layout modification.
+	 */
 	void calculate_channel_count();
 
-	int sample_rate_;
+	int sample_rate_;                    ///< Audio sample rate in Hz (e.g., 48000)
 
+	/**
+	 * @brief FFmpeg channel layout structure
+	 * 
+	 * WARNING: This struct contains a union with a pointer member (u.map) when
+	 * using custom channel layouts (order == AV_CHANNEL_ORDER_CUSTOM). The pointer
+	 * must be properly managed via av_channel_layout_copy/uninit.
+	 * 
+	 * Layout variants:
+	 * - order == AV_CHANNEL_ORDER_UNSPEC: u.mask is undefined, nb_channels valid
+	 * - order == AV_CHANNEL_ORDER_NATIVE: u.mask contains channel bitmask
+	 * - order == AV_CHANNEL_ORDER_CUSTOM: u.map points to AVChannelCustom array
+	 * 
+	 * Corruption symptoms:
+	 * - u.mask == 0 when order should be NATIVE
+	 * - av_channel_layout_check() returns false
+	 * - is_valid() returns false
+	 */
 	AVChannelLayout channel_layout_;
 
-	int channel_count_;
+	int channel_count_;                  ///< Cached channel count from layout
 
-	SampleFormat format_;
+	SampleFormat format_;                ///< Audio sample format
 
-	// Footage-specific
-	int enabled_; // Switching this to int fixes GCC 11 stringop-overflow issue, I guess a byte-alignment issue?
-	int stream_index_;
-	int64_t duration_;
-	rational timebase_;
+	// Footage-specific parameters (serialized with footage metadata)
+	int enabled_; // Using int instead of bool fixes GCC 11 stringop-overflow issue (byte alignment)
+	int stream_index_;                   ///< Index in the source file's stream list
+	int64_t duration_;                   ///< Stream duration in timebase units
+	rational timebase_;                  ///< Timebase for this audio stream
 };
 
 }

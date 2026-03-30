@@ -158,4 +158,80 @@ void AudioParams::calculate_channel_count()
 	channel_count_ = channel_layout().nb_channels;
 }
 
+/**
+ * @brief Copy constructor - deep copies AVChannelLayout
+ * 
+ * This is critical because AVChannelLayout::u.map is a pointer for custom
+ * channel layouts. Default copy would share the pointer, leading to double-free.
+ * 
+ * The member initializer list initializes channel_layout_ to zero ({}),
+ * then av_channel_layout_copy performs the deep copy from other.
+ * 
+ * @param other Source AudioParams to copy from
+ */
+AudioParams::AudioParams(const AudioParams &other)
+	: sample_rate_(other.sample_rate_)
+	, channel_layout_{}  // Zero-initialize before FFmpeg copy
+	, channel_count_(other.channel_count_)
+	, format_(other.format_)
+	, enabled_(other.enabled_)
+	, stream_index_(other.stream_index_)
+	, duration_(other.duration_)
+	, timebase_(other.timebase_)
+{
+	// Deep copy AVChannelLayout using FFmpeg API
+	// This handles all layout types: unspecified, native (mask), and custom (map)
+	av_channel_layout_copy(&channel_layout_, &other.channel_layout_);
+}
+
+/**
+ * @brief Copy assignment - cleans up existing layout before copying
+ * 
+ * CRITICAL ORDER OF OPERATIONS:
+ * 1. Check for self-assignment (this != &other)
+ * 2. Copy all scalar members
+ * 3. Uninitialize current channel_layout_ (frees old u.map if present)
+ * 4. Deep copy from other's channel_layout_
+ * 
+ * Step 3 must happen before step 4 to avoid memory leaks. If we copied first,
+ * we'd lose the pointer to the old u.map that needs to be freed.
+ * 
+ * @param other Source AudioParams to copy from
+ * @return Reference to this for chaining
+ */
+AudioParams &AudioParams::operator=(const AudioParams &other)
+{
+	if (this != &other) {
+		// Copy scalar members first (no dependencies)
+		sample_rate_ = other.sample_rate_;
+		format_ = other.format_;
+		channel_count_ = other.channel_count_;
+		enabled_ = other.enabled_;
+		stream_index_ = other.stream_index_;
+		duration_ = other.duration_;
+		timebase_ = other.timebase_;
+		
+		// Free current layout's dynamic memory (u.map if custom)
+		av_channel_layout_uninit(&channel_layout_);
+		
+		// Deep copy from other (includes allocating new u.map if needed)
+		av_channel_layout_copy(&channel_layout_, &other.channel_layout_);
+	}
+	return *this;
+}
+
+/**
+ * @brief Destructor - frees AVChannelLayout dynamic memory
+ * 
+ * av_channel_layout_uninit() handles all cases:
+ * - Unspecified/Native: No-op (no dynamic memory)
+ * - Custom: Frees u.map array
+ * 
+ * Without this, custom channel layouts would leak memory.
+ */
+AudioParams::~AudioParams()
+{
+	av_channel_layout_uninit(&channel_layout_);
+}
+
 }
